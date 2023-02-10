@@ -17,6 +17,7 @@ setup(
     packages=['beetsplug'],
 
     install_requires=[
+        'alive-progress',
         'beets>=1.4.7',
         'futures; python_version<"3"',
         'six',

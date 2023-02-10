@@ -20,6 +20,7 @@ import six
 import traceback
 
 import beets
+from alive_progress import alive_bar, alive_it
 from beets import util, art
 from beets.plugins import BeetsPlugin
 from beets.ui import Subcommand, get_path_formats, input_yn, UserError, \
@@ -254,13 +255,12 @@ class External(object):
             return
 
         converter = self.converter()
-        for (item, actions) in self.items_actions():
+        to_add_count = 0
+        for (item, actions) in alive_it(self.items_actions(), title='Updating'):
             dest = self.destination(item)
             path = self.get_path(item)
             for action in actions:
                 if action == self.MOVE:
-                    print_(u'>{0} -> {1}'.format(displayable_path(path),
-                                                 displayable_path(dest)))
                     util.mkdirall(dest)
                     util.move(path, dest)
                     util.prune_dirs(os.path.dirname(path), root=self.directory)
@@ -268,22 +268,21 @@ class External(object):
                     item.store()
                     path = dest
                 elif action == self.WRITE:
-                    print_(u'*{0}'.format(displayable_path(path)))
                     item.write(path=path)
                 elif action == self.SYNC_ART:
-                    print_(u'~{0}'.format(displayable_path(path)))
                     self.sync_art(item, path)
                 elif action == self.ADD:
-                    print_(u'+{0}'.format(displayable_path(dest)))
+                    to_add_count += 1
                     converter.submit(item)
                 elif action == self.REMOVE:
-                    print_(u'-{0}'.format(displayable_path(path)))
                     self.remove_item(item)
                     item.store()
 
-        for item, dest in converter.as_completed():
-            self.set_path(item, dest)
-            item.store()
+        with alive_bar(to_add_count, title='Adding') as bar:
+            for item, dest in converter.as_completed():
+                self.set_path(item, dest)
+                item.store()
+                bar()
         converter.shutdown()
 
     def destination(self, item):
