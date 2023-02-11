@@ -255,12 +255,17 @@ class External(object):
             return
 
         converter = self.converter()
-        to_add_count = 0
+        moved_count = 0
+        metadata_updated_count = 0
+        art_updated_count = 0
+        added_count = 0
+        removed_count = 0
         for (item, actions) in alive_it(self.items_actions(), title='Updating'):
             dest = self.destination(item)
             path = self.get_path(item)
             for action in actions:
                 if action == self.MOVE:
+                    moved_count += 1
                     util.mkdirall(dest)
                     util.move(path, dest)
                     util.prune_dirs(os.path.dirname(path), root=self.directory)
@@ -268,22 +273,29 @@ class External(object):
                     item.store()
                     path = dest
                 elif action == self.WRITE:
+                    metadata_updated_count += 1
                     item.write(path=path)
                 elif action == self.SYNC_ART:
+                    art_updated_count += 1
                     self.sync_art(item, path)
                 elif action == self.ADD:
-                    to_add_count += 1
+                    added_count += 1
                     converter.submit(item)
                 elif action == self.REMOVE:
+                    removed_count += 1
                     self.remove_item(item)
                     item.store()
 
-        with alive_bar(to_add_count, title='Adding') as bar:
-            for item, dest in converter.as_completed():
-                self.set_path(item, dest)
-                item.store()
-                bar()
+        if added_count > 0:
+            with alive_bar(added_count, title='Adding') as bar:
+                for item, dest in converter.as_completed():
+                    self.set_path(item, dest)
+                    item.store()
+                    bar()
         converter.shutdown()
+
+        print_(u'Added {0}, Removed {1}, Moved {2}, Metadata Updated {3}, Art Updated {4}'
+               .format(added_count, removed_count, moved_count, metadata_updated_count, art_updated_count))
 
     def destination(self, item):
         return item.destination(basedir=self.directory,
